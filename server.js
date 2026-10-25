@@ -55,9 +55,21 @@ const ctx = { waitUntil(p) { if (p && typeof p.catch === "function") p.catch(() 
 const PORT = Number(process.env.PORT || 6666);
 
 /* ---------- 4) Node req/res <-> Web Request/Response 转换 ---------- */
+// 2026-10-25 本地补丁：反代（TLS 终止在 nginx/caddy，容器内是明文 8666）场景下，
+// 绝对地址必须按反代对外暴露的 scheme+host 生成，否则详情里的 streamUrl 会变成
+// http://<域名>:<https端口>/… → 播放器拉流直接连不上（实测 000，换 https 才 206）。
+// 优先级：PUBLIC_BASE_URL（最确定）> X-Forwarded-Proto/Host > 直连时的 Host 头。
+function externalOrigin(req) {
+  const envBase = String(process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  if (envBase) return envBase;
+  const pick = (v) => String(v || "").split(",")[0].trim();
+  const proto = pick(req.headers["x-forwarded-proto"]) || (req.socket && req.socket.encrypted ? "https" : "http");
+  const host = pick(req.headers["x-forwarded-host"]) || req.headers.host || "127.0.0.1";
+  return `${proto}://${host}`;
+}
+
 function toWebRequest(req) {
-  const host = req.headers.host || "127.0.0.1";
-  const url = `http://${host}${req.url}`;
+  const url = `${externalOrigin(req)}${req.url}`;
   const headers = {};
   if (req.rawHeaders) {
     for (let i = 0; i < req.rawHeaders.length; i += 2) headers[req.rawHeaders[i]] = req.rawHeaders[i + 1];
