@@ -14,7 +14,7 @@ WidgetMetadata = {
   site: "https://t.me/MakkaPakkaOvO",
   detailCacheDuration: 180,
   globalParams: [
-    { name: "apiBase", title: "红果 API 地址", type: "input", value: "__API_BASE__" },
+    { name: "apiBase", title: "红果 API 地址（已预填，一般无需改）", type: "input", value: "__API_BASE__" },
     { name: "coverWorker", title: "黄果封面代理地址", type: "input", value: "__COVER_BASE__" }
   ],
   modules: [
@@ -140,9 +140,12 @@ const Hongguo = (() => {
 function t(v) {
   return String(v == null ? "" : v).trim();
 }
+// [LOCAL-2026-10-25] 预填默认 API 地址：装上去即可用，无需手动配置。
+// 设置里填了就以设置为准（params.apiBase 优先），没填才用这个。
+const DEFAULT_API_BASE = "__API_BASE__";
 function cfg(params) {
   params = params || {};
-  var base = t(params.apiBase).replace(/\/+$/, "");
+  var base = (t(params.apiBase) || DEFAULT_API_BASE).replace(/\/+$/, "");
   if (!base) throw new Error("请先在插件设置中填写 API 地址");
   if (!/^https?:\/\/[^/?#\s]+(?:\/[^?#\s]*)?$/i.test(base)) {
     throw new Error("API 地址须为完整的 HTTP 或 HTTPS 地址，不能包含查询参数");
@@ -438,7 +441,7 @@ const STORAGE_KEY_WORKER = "hg_cover_worker";
 // 封面解密 Worker 地址（代码内默认值，默认留空，不要内置任何人的私有 Worker）：
 // 推荐在 App 的模块设置「封面代理(Worker)地址」里填写（优先级最高，无需改脚本）；
 // 不方便前端配置时，也可直接把地址填到下面引号内。两者都为空则使用原始封面地址。
-const HUANGGUO_COVER_WORKER_URL = "";
+const HUANGGUO_COVER_WORKER_URL = "__COVER_BASE__";  // [LOCAL-2026-10-25] 预填
 
 function normalizeWorker(value) {
   return String(value || "").trim().replace(/\/+$/, "");
