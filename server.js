@@ -179,9 +179,29 @@ async function serveCover(req, res, query) {
 }
 
 /* ---------- 6) 启动服务 ---------- */
+// 2026-10-25 本地补丁：加访问日志。上游原版只在启动时打 3 行，出问题时完全无法判断
+// 客户端卡在哪一步（列表/详情/起播/seek）。只记方法、路径、状态、耗时、Range、UA 摘要，
+// 不记 token 原文（token 是播放凭据）。
+function logLine(req, status, startedAt, extra) {
+  const url = String(req.url || "");
+  const path = url.split("?")[0].replace(/\/api\/v1\/stream\/.+$/, "/api/v1/stream/<token>");
+  const range = req.headers["range"] || "-";
+  const ua = String(req.headers["user-agent"] || "-").slice(0, 42);
+  const ms = Date.now() - startedAt;
+  const slow = ms > 2000 ? " SLOW" : "";
+  console.log(
+    `[req] ${req.method} ${path} ${status} ${ms}ms range=${range} ua="${ua}"${extra ? " " + extra : ""}${slow}`,
+  );
+}
+
 const server = createServer(async (req, res) => {
+  const startedAt = Date.now();
   const url = new URL(req.url, "http://x");
   const pathname = url.pathname;
+  res.on("finish", () => {
+    const len = res.getHeader("content-length");
+    logLine(req, res.statusCode, startedAt, len ? `len=${len}` : "");
+  });
   if (pathname === "/duanju.js") return serveDuanju(res);
   if (pathname === "/cover") return serveCover(req, res, url.searchParams);
   try {
