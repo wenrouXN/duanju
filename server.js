@@ -112,7 +112,22 @@ function serveDuanju(res) {
 }
 
 /* ---------- 5b) 黄果封面解密代理 /cover?url=... ---------- */
-const COVER_ALLOWED_HOSTS = new Set(["pic.fisawck.cn", "pic.tuafjz.cn", "expose.eisees.com", "pic.tkzdds.cn", "pic.wirqed.cn"]);
+// 2026-10-25 本地补丁：黄果封面 CDN 已从 pic.fisawck.cn 换成 pic.drleao.cn（AES key 未变，
+// 实测 f5d965df…/97b60394… 解出的仍是 JPEG）。白名单改成「默认集 + env 追加」，
+// 以后再换 CDN 只改 .env 的 COVER_ALLOWED_HOSTS，不用动代码。
+const COVER_DEFAULT_HOSTS = [
+  "pic.drleao.cn",        // 2026-10 现行 CDN
+  "pic.fisawck.cn",       // 历史 CDN
+  "pic.tuafjz.cn",
+  "expose.eisees.com",
+  "pic.tkzdds.cn",
+  "pic.wirqed.cn",
+];
+const COVER_ALLOWED_HOSTS = new Set(
+  COVER_DEFAULT_HOSTS.concat(
+    String(process.env.COVER_ALLOWED_HOSTS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean),
+  ),
+);
 const COVER_MEDIA_KEY = new TextEncoder().encode("f5d965df75336270");
 const COVER_MEDIA_IV = new TextEncoder().encode("97b60394abc2fbe1");
 
