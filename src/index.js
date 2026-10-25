@@ -498,8 +498,34 @@ async function handleApi(request, env, ctx) {
       const query = text(url.searchParams.get("q") || url.searchParams.get("keyword"));
       if (!query) return json(pagePayload([], 1, 1, 0));
       const page = pageNumber(url.searchParams.get("page"));
+      // 2026-10-25 本地补丁：官方 /search/<kw> 页面已改成纯前端渲染（HTML 里没有 searchList），
+      // 改为直连官方搜索 JSON 接口 /api/search/result/（返回 searchList/totalCount/totalPages）。
+      // 分页参数是 page（不是 offset/count，固定 10 条/页）；上游偶发返空（同关键词重试即有），
+      // 所以：① 空结果带 nonce 重试；② 仍空则退到 /api/search/suggestion/；③ 最后退到原 HTML 解析。
+      const pick = (rows) => (Array.isArray(rows) ? rows.map(seriesItem).filter((item) => item.id && item.id !== SERIES_REF) : []);
+      const getJson = async (u) => {
+        try { return JSON.parse(await fetchText(u, ctx, CACHE_TTL, { allowServerErrorDocument: true })); } catch { return null; }
+      };
+      let items = [];
+      let total = 0;
+      let totalPages = 1;
+      for (let attempt = 0; attempt < 2 && !items.length; attempt += 1) {
+        const nonce = attempt ? `&_r=${Date.now()}` : "";
+        const payload = await getJson(`${OFFICIAL_ORIGIN}/api/search/result/?query=${encodeURIComponent(query)}&page=${page}${nonce}`);
+        if (payload && Array.isArray(payload.searchList)) {
+          items = pick(payload.searchList);
+          total = int(payload.totalCount, 0) || items.length;
+          totalPages = int(payload.totalPages, 0) || 1;
+        }
+      }
+      if (items.length) return json(pagePayload(items, page, totalPages, total));
+      if (page === 1) {
+        const suggestion = await getJson(`${OFFICIAL_ORIGIN}/api/search/suggestion/?query=${encodeURIComponent(query)}&_r=${Date.now()}`);
+        items = pick(suggestion?.suggestionList);
+        if (items.length) return json(pagePayload(items, 1, 1, items.length));
+      }
       const html = await fetchText(`${OFFICIAL_ORIGIN}/search/${encodeURIComponent(query)}`, ctx, CACHE_TTL, { allowServerErrorDocument: true });
-      const items = officialSearch(html);
+      items = officialSearch(html);
       return json(pagePayload(items, page, 1, items.length));
     }
     if (operation === "browse") {
